@@ -1,0 +1,175 @@
+import ctypes
+import comtypes.client
+from typing import Protocol 
+from comtypes import automation
+
+class OpenSTAADGeometry(Protocol):
+    def _FlagAsMethod(self, name: str) -> None: ...
+    def GetMemberCount(self) -> int: ...
+    def GetMemberIncidence(self, v_beam_no, v_node_a_byref, v_node_b_byref): ...
+    def GetBeamList(self, beam_list_variant) -> None: ...
+    def GetNodeCoordinates(self, v_node_no, v_x_byref, v_y_byref, v_z_byref) ->None: ...
+    def IsBeam(self, v_member_no, v_tol_angle) -> automation.VARIANT: ...
+    def IsColumn(self, v_member_no, v_tol_angle) -> automation.VARIANT: ...
+
+class OpenSTAADProperty(Protocol):
+    def GetBeamSectionDisplayName(self, beam_no) -> None:...
+
+def make_variant_i4(value: int) -> automation.VARIANT:
+    """Create a VT_I4 VARIANT by value."""
+    v = automation.VARIANT(value)
+    v.vt = automation.VT_I4
+    return v
+
+def make_variant_r8(value: float) -> automation.VARIANT:
+    """Create a VT_R8 VARIANT by value (float/double)."""
+    v = automation.VARIANT(value)
+    v.vt = automation.VT_R8
+    return v
+
+def make_variant_vt_ref(obj: object, var_type: int) -> automation.VARIANT:
+    var = automation.VARIANT()
+    var._.c_void_p = ctypes.addressof(obj)  # pass by reference
+    var.vt = var_type | automation.VT_BYREF
+    return var
+
+def make_safe_array_long(size: int):
+    return automation._midlSAFEARRAY(ctypes.c_long).create([0] * size)
+
+def get_beam_list(geometry: OpenSTAADGeometry) -> list[int]:
+    """
+    Returns all member IDs in the current model.
+    """
+
+    geometry._FlagAsMethod("GetMemberCount")
+    count = int(geometry.GetMemberCount())
+    if count <= 0:
+        return []
+
+    sa_members = make_safe_array_long(count)
+    v_members = make_variant_vt_ref(sa_members, automation.VT_ARRAY | automation.VT_I4)
+
+    geometry._FlagAsMethod("GetBeamList")
+    geometry.GetBeamList(v_members)
+
+    raw = v_members.value
+    data = raw if isinstance(raw, list) and (not raw or not isinstance(raw[0], list)) else raw[0]
+    return [int(x) for x in data]
+
+def get_member_incidence(geometry: OpenSTAADGeometry, beam_no: int) -> tuple[int, int]:
+    """
+    Returns the start and end node IDs for a member.
+    """
+
+    v_beam = make_variant_i4(int(beam_no))
+
+    node_a = ctypes.c_long(0)
+    node_b = ctypes.c_long(0)
+    v_node_a = make_variant_vt_ref(node_a, automation.VT_I4)
+    v_node_b = make_variant_vt_ref(node_b, automation.VT_I4)
+
+    geometry._FlagAsMethod("GetMemberIncidence")
+    ret = geometry.GetMemberIncidence(v_beam, v_node_a, v_node_b)
+
+    ret_code = int(ret.value if isinstance(ret, automation.VARIANT) else ret)
+
+    if ret_code < 0:
+        if ret_code == -3001:
+            raise RuntimeError(f"GetMemberIncidence failed with -3001, member {beam_no} not found")
+        raise RuntimeError(f"GetMemberIncidence failed with code {ret_code}")
+
+    return int(node_a.value), int(node_b.value)
+
+def get_node_coords(geometry: OpenSTAADGeometry, node_no: int) -> tuple[float, float, float]:
+    """
+    Returns the (x, y, z) coordinates of the specified node in GLOBAL axes.
+    """
+
+    v_node = make_variant_i4(int(node_no))
+
+    x = ctypes.c_double(0.0)
+    y = ctypes.c_double(0.0)
+    z = ctypes.c_double(0.0)
+    v_x = make_variant_vt_ref(x, automation.VT_R8)
+    v_y = make_variant_vt_ref(y, automation.VT_R8)
+    v_z = make_variant_vt_ref(z, automation.VT_R8)
+
+    geometry._FlagAsMethod("GetNodeCoordinates")
+    geometry.GetNodeCoordinates(v_node, v_x, v_y, v_z)
+
+    return float(x.value), float(y.value), float(z.value)
+
+def is_beam(geometry: OpenSTAADGeometry, member_no: int, tol_angle_deg: float) -> int:
+    """
+    Returns 1 if the specified member is a BEAM within tolerance angle, 0 if not, or -3001 if member not found.
+    """
+    v_member = make_variant_i4(int(member_no))
+    v_tol = make_variant_r8(float(tol_angle_deg))
+
+    geometry._FlagAsMethod("IsBeam")
+    ret = geometry.IsBeam(v_member, v_tol)
+    return int(ret.value if isinstance(ret, automation.VARIANT) else ret)
+
+def is_column(geometry: OpenSTAADGeometry, member_no: int, tol_angle_deg: float) -> int:
+    """
+    Returns 1 if the specified member is a COLUMN within tolerance angle, 0 if not, or -3001 if member not found.
+    """
+    v_member = make_variant_i4(int(member_no))
+    v_tol = make_variant_r8(float(tol_angle_deg))
+
+    geometry._FlagAsMethod("IsColumn")
+    ret = geometry.IsColumn(v_member, v_tol)
+    return int(ret.value if isinstance(ret, automation.VARIANT) else ret)
+
+def get_beam_name(staad_property: OpenSTAADProperty, beamNo: int) -> str:
+    """
+    Returns the beam property name
+    """
+    staad_property._FlagAsMethod("GetBeamSectionDisplayName")
+    return staad_property.GetBeamSectionDisplayName(beamNo)
+
+if __name__ == "__main__":
+    os = comtypes.client.GetActiveObject("StaadPro.OpenSTAAD")
+    geometry: OpenSTAADGeometry = os.Geometry  # type: ignore[assignment]
+    beam_ids = get_beam_list(geometry)
+    print(f"beam_ids = {beam_ids}")
+    connectivity = {} 
+    lines = {} 
+
+    geom: OpenSTAADGeometry = os.Geometry  # type: ignore[assignment]
+    prop: OpenSTAADProperty = os.Property
+    for bid in beam_ids:
+        na, nb = get_member_incidence(geometry=geom, beam_no=bid)
+        beam_name = get_beam_name(staad_property=prop, beamNo=bid)
+        try:
+            ax, ay, az = get_node_coords(geometry=geom, node_no=na)
+            bx, by, bz = get_node_coords(geometry=geom, node_no=nb)
+        except Exception as e:
+            ax = ay = az = bx = by = bz = float("nan")
+            print(f"Failed to get node coordinates for beam {bid}: {e}")
+
+        # Use a small angle tolerance; 5 degrees per API examples
+        beam_check = is_beam(geometry=geom, member_no=bid, tol_angle_deg=5.0)
+        col_check = is_column(geometry=geom, member_no=bid, tol_angle_deg=5.0)
+        
+        if na not in connectivity:
+            connectivity[na] = {"x": ax, "y": ay, "z": az}
+
+        if nb not in connectivity:
+            connectivity[nb] = {"x": bx, "y": by, "z": bz}
+        
+        lines[bid] = {"nodeI": na, "nodeJ": nb, "section": beam_name}
+        print(
+            f"beam_name='{beam_name}', member={bid}, nodes=({na}, {nb}), "
+            f"nodeA=({ax:.6g}, {ay:.6g}, {az:.6g}), nodeB=({bx:.6g}, {by:.6g}, {bz:.6g}), "
+            f"IsBeam={beam_check}, IsColumn={col_check}"
+        )
+        import json
+        data = {
+            "units":"m",
+            "connectivity": connectivity,
+            "lines": lines,
+        }
+        with open("output.json", "w") as jsonfile:
+            json.dump(data, jsonfile, indent=4)
+
