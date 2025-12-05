@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "aps-automation-sdk>=0.1.0",
     "comtypes>=1.4.13",
     "pyqt6>=6.7.0",
     "python-dotenv>=1.2.1",
