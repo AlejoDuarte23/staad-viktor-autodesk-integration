@@ -1,6 +1,7 @@
 import ctypes
+from typing import Any, Protocol
+
 import comtypes.client
-from typing import Protocol 
 from comtypes import automation
 
 class OpenSTAADGeometry(Protocol):
@@ -14,6 +15,45 @@ class OpenSTAADGeometry(Protocol):
 
 class OpenSTAADProperty(Protocol):
     def GetBeamSectionDisplayName(self, beam_no) -> None:...
+
+
+def get_openstaad_clients() -> tuple[OpenSTAADGeometry, OpenSTAADProperty]:
+    """Return the geometry and property interfaces from OpenSTAAD."""
+
+    os = comtypes.client.GetActiveObject("StaadPro.OpenSTAAD")
+    geom: OpenSTAADGeometry = os.Geometry  # type: ignore[assignment]
+    prop: OpenSTAADProperty = os.Property
+    return geom, prop
+
+
+def collect_geometry_data(units: str = "m") -> dict[str, Any]:
+    """Collect connectivity data from the active STAAD model."""
+
+    geometry, staad_property = get_openstaad_clients()
+    beam_ids = get_beam_list(geometry)
+    connectivity: dict[int, dict[str, float]] = {}
+    lines: dict[int, dict[str, Any]] = {}
+
+    for bid in beam_ids:
+        na, nb = get_member_incidence(geometry=geometry, beam_no=bid)
+        beam_name = get_beam_name(staad_property=staad_property, beamNo=bid)
+
+        try:
+            ax, ay, az = get_node_coords(geometry=geometry, node_no=na)
+            bx, by, bz = get_node_coords(geometry=geometry, node_no=nb)
+        except Exception as exc:  # pragma: no cover - defensive logging
+            ax = ay = az = bx = by = bz = float("nan")
+            print(f"Failed to get node coordinates for beam {bid}: {exc}")
+
+        if na not in connectivity:
+            connectivity[na] = {"x": ax, "y": ay, "z": az}
+
+        if nb not in connectivity:
+            connectivity[nb] = {"x": bx, "y": by, "z": bz}
+
+        lines[bid] = {"nodeI": na, "nodeJ": nb, "section": beam_name}
+
+    return {"units": units, "connectivity": connectivity, "lines": lines}
 
 def make_variant_i4(value: int) -> automation.VARIANT:
     """Create a VT_I4 VARIANT by value."""
@@ -129,47 +169,10 @@ def get_beam_name(staad_property: OpenSTAADProperty, beamNo: int) -> str:
     return staad_property.GetBeamSectionDisplayName(beamNo)
 
 if __name__ == "__main__":
-    os = comtypes.client.GetActiveObject("StaadPro.OpenSTAAD")
-    geometry: OpenSTAADGeometry = os.Geometry  # type: ignore[assignment]
-    beam_ids = get_beam_list(geometry)
-    print(f"beam_ids = {beam_ids}")
-    connectivity = {} 
-    lines = {} 
+    import json
 
-    geom: OpenSTAADGeometry = os.Geometry  # type: ignore[assignment]
-    prop: OpenSTAADProperty = os.Property
-    for bid in beam_ids:
-        na, nb = get_member_incidence(geometry=geom, beam_no=bid)
-        beam_name = get_beam_name(staad_property=prop, beamNo=bid)
-        try:
-            ax, ay, az = get_node_coords(geometry=geom, node_no=na)
-            bx, by, bz = get_node_coords(geometry=geom, node_no=nb)
-        except Exception as e:
-            ax = ay = az = bx = by = bz = float("nan")
-            print(f"Failed to get node coordinates for beam {bid}: {e}")
+    data = collect_geometry_data()
+    with open("output.json", "w", encoding="utf-8") as jsonfile:
+        json.dump(data, jsonfile, indent=4)
 
-        # Use a small angle tolerance; 5 degrees per API examples
-        beam_check = is_beam(geometry=geom, member_no=bid, tol_angle_deg=5.0)
-        col_check = is_column(geometry=geom, member_no=bid, tol_angle_deg=5.0)
-        
-        if na not in connectivity:
-            connectivity[na] = {"x": ax, "y": ay, "z": az}
-
-        if nb not in connectivity:
-            connectivity[nb] = {"x": bx, "y": by, "z": bz}
-        
-        lines[bid] = {"nodeI": na, "nodeJ": nb, "section": beam_name}
-        print(
-            f"beam_name='{beam_name}', member={bid}, nodes=({na}, {nb}), "
-            f"nodeA=({ax:.6g}, {ay:.6g}, {az:.6g}), nodeB=({bx:.6g}, {by:.6g}, {bz:.6g}), "
-            f"IsBeam={beam_check}, IsColumn={col_check}"
-        )
-        import json
-        data = {
-            "units":"m",
-            "connectivity": connectivity,
-            "lines": lines,
-        }
-        with open("output.json", "w") as jsonfile:
-            json.dump(data, jsonfile, indent=4)
-
+    print("Exported STAAD geometry to output.json")
