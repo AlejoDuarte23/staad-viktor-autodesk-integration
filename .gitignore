@@ -10,3 +10,5 @@ build/
 .venv
 output.json
 test_staad.spec
+.env
+.mypy_cache/
