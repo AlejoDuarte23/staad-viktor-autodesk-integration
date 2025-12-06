@@ -2,7 +2,7 @@
 from PyInstaller.utils.hooks import collect_submodules
 from PyInstaller.utils.hooks import collect_all
 
-datas = []
+datas = [('frontend/assets', 'frontend/assets')]
 binaries = []
 hiddenimports = []
 hiddenimports += collect_submodules('backend')
@@ -42,6 +42,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='frontend/assets/logo.ico',
 )
 coll = COLLECT(
     exe,

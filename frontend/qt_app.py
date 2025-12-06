@@ -1,11 +1,22 @@
 from __future__ import annotations
 
+import os
 import sys
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from backend.staad_engine import collect_geometry_data
 from backend.viktor_api import push_geometry_data_to_viktor
+
+# Path to assets folder (handles both normal and PyInstaller frozen mode)
+if getattr(sys, 'frozen', False):
+    # Running as PyInstaller bundle
+    BASE_DIR = sys._MEIPASS
+    ASSETS_DIR = os.path.join(BASE_DIR, "frontend", "assets")
+else:
+    # Running as normal Python script
+    ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+LOGO_PATH = os.path.join(ASSETS_DIR, "logo.png")
 
 DEFAULT_URL = "https://beta.viktor.ai/workspaces/2539/app/editor/2262"
 ACCENT_COLOR = "#1a73e8"
@@ -44,6 +55,10 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowTitle("STAAD → VIKTOR Push")
         self.setMinimumSize(640, 480)
+
+        # Set window icon
+        if os.path.exists(LOGO_PATH):
+            self.setWindowIcon(QtGui.QIcon(LOGO_PATH))
 
         self.thread_pool = QtCore.QThreadPool.globalInstance()
 
@@ -203,6 +218,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
 def run() -> int:
     app = QtWidgets.QApplication(sys.argv)
+    
+    # Set application icon (shows in taskbar)
+    if os.path.exists(LOGO_PATH):
+        app.setWindowIcon(QtGui.QIcon(LOGO_PATH))
+    
     window = MainWindow()
     window.show()
     return app.exec()
