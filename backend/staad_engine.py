@@ -45,13 +45,16 @@ def collect_geometry_data(units: str = "m") -> dict[str, Any]:
             ax = ay = az = bx = by = bz = float("nan")
             print(f"Failed to get node coordinates for beam {bid}: {exc}")
 
+        # Swap Y and Z: STAAD Y (vertical) -> Revit Z (vertical)
         if na not in connectivity:
-            connectivity[na] = {"x": ax, "y": ay, "z": az}
+            connectivity[na] = {"x": ax, "y": az, "z": ay}
 
         if nb not in connectivity:
-            connectivity[nb] = {"x": bx, "y": by, "z": bz}
+            connectivity[nb] = {"x": bx, "y": bz, "z": by}
 
-        lines[bid] = {"nodeI": na, "nodeJ": nb, "section": beam_name}
+        # Convert section name: replace uppercase X with lowercase x (e.g., UB457X152X52 -> UB457x152x52)
+        section_name = beam_name.replace("X", "x") if beam_name else beam_name
+        lines[bid] = {"nodeI": na, "nodeJ": nb, "section": section_name}
 
     return {"units": units, "connectivity": connectivity, "lines": lines}
 

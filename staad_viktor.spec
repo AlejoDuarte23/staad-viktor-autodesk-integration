@@ -52,4 +52,3 @@ coll = COLLECT(
     upx_exclude=[],
     name='staad_viktor',
 )
-

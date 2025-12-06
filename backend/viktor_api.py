@@ -234,20 +234,14 @@ def parse_json_response(response: requests.Response, context: str) -> dict:
 
 
 def push_geometry_data_to_viktor(viktor_url: str, token: str, geometry_data: dict) -> dict:
-    """Upload STAAD geometry to the provided VIKTOR entity."""
+    """Upload STAAD geometry to the provided VIKTOR entity without executing a job."""
 
     config = create_config_from_url(viktor_url, token)
     client = ViktorClient(config)
 
     file_resource_id = client.upload_json_file(geometry_data, filename="staad_geometry.json")
     client.update_entity_params(file_resource_id)
-    job_data, result_content = client.create_job(file_resource_id)
-
-    return {
-        "file_id": file_resource_id,
-        "job": job_data,
-        "result": result_content,
-    }
+    return {"file_id": file_resource_id, "status": "uploaded"}
 
 def main() -> None:
     try:
