@@ -99,7 +99,7 @@ class Controller(vkt.Controller):
             input_json.upload_file_to_oss(file_path=temp_path, token=token)
 
         # Upload Work Item
-        input_rvt_path = Path.cwd() / "files" / "revit_input.rvt"
+        input_rvt_path = Path(__file__).parent / "files" / "revit_input.rvt"
         input_revit.upload_file_to_oss(file_path=str(input_rvt_path), token=token)
         print(f"Input Revit file uploaded: {input_rvt_path.name}")
 
