@@ -53,8 +53,6 @@ class Controller(vkt.Controller):
         # Set nickname. If the app already has a nickname, the previous one will be returned.
         nickname = set_nickname(token, "myUniqueNickNameHere")
         print(f"Authentication successful. Nickname: {nickname}")
-
-
         activity_name = "CreateBeamElementsActivity"
         alias = "prod"
         bucket_key = uuid.uuid4().hex

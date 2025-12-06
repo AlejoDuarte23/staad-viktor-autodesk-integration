@@ -9,6 +9,9 @@ from backend.staad_engine import collect_geometry_data
 from backend.viktor_api import push_geometry_data_to_viktor
 
 DEFAULT_URL = "https://beta.viktor.ai/workspaces/2539/app/editor/2262"
+ACCENT_COLOR = "#1a73e8"
+ACCENT_HOVER = "#1664c4"
+ACCENT_ACTIVE = "#0f4fa8"
 
 
 class WorkerSignals(QtCore.QObject):
@@ -48,11 +51,20 @@ class MainWindow(QtWidgets.QMainWindow):
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
 
-        layout = QtWidgets.QVBoxLayout(central)
-        layout.setContentsMargins(32, 32, 32, 32)
+        outer = QtWidgets.QVBoxLayout(central)
+        outer.setContentsMargins(24, 24, 24, 24)
+        outer.setSpacing(16)
+
+        card = QtWidgets.QFrame()
+        card.setObjectName("card")
+        outer.addWidget(card, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+
+        layout = QtWidgets.QVBoxLayout(card)
+        layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
         title = QtWidgets.QLabel("Push STAAD Geometry to VIKTOR")
+        title.setObjectName("title")
         title.setFont(QtGui.QFont("Inter", 18, QtGui.QFont.Weight.Bold))
         layout.addWidget(title)
 
@@ -60,6 +72,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "Provide the VIKTOR workspace editor URL and API token. Press the button to"
             " collect geometry from the active STAAD session and upload it."
         )
+        subtitle.setObjectName("subtitle")
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
 
@@ -82,6 +95,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self.push_button)
 
         self.status_label = QtWidgets.QLabel()
+        self.status_label.setObjectName("status")
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
 
@@ -89,6 +103,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.result_view.setReadOnly(True)
         self.result_view.hide()
         layout.addWidget(self.result_view, 1)
+
+        self.apply_style()
 
     def handle_submit(self) -> None:
         viktor_url = self.url_input.text().strip()
@@ -121,6 +137,71 @@ class MainWindow(QtWidgets.QMainWindow):
     def set_status(self, message: str, color: str) -> None:
         self.status_label.setText(message)
         self.status_label.setStyleSheet(f"color: {color}; font-weight: 600;")
+
+    def apply_style(self) -> None:
+        """Set a light theme aligned with VIKTOR's white/blue look."""
+        self.setStyleSheet(
+            f"""
+            QWidget {{
+                background: #f7f9fc;
+                color: #1f2933;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
+                font-size: 13px;
+            }}
+            QFrame#card {{
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+            }}
+            QLabel#title {{
+                font-size: 18px;
+                font-weight: 700;
+                color: #1f2933;
+            }}
+            QLabel#subtitle {{
+                color: #4b5563;
+            }}
+            QLabel#status {{
+                font-weight: 600;
+            }}
+            QLineEdit {{
+                background: #ffffff;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                padding: 8px 10px;
+                selection-background-color: {ACCENT_COLOR};
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {ACCENT_COLOR};
+            }}
+            QPushButton {{
+                background-color: {ACCENT_COLOR};
+                color: white;
+                border: none;
+                border-radius: 10px;
+                padding: 10px 14px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: {ACCENT_HOVER};
+            }}
+            QPushButton:pressed {{
+                background-color: {ACCENT_ACTIVE};
+            }}
+            QPushButton:disabled {{
+                background-color: #b9d3ff;
+                color: #e9f0ff;
+            }}
+            QPlainTextEdit {{
+                background: #f4f6fb;
+                border: 1px solid #e5e7eb;
+                border-radius: 10px;
+                padding: 10px;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                font-size: 12px;
+            }}
+            """
+        )
 
 
 def run() -> int:

@@ -5,7 +5,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Dict, Tuple
 from urllib.parse import urlparse
 
 import requests
