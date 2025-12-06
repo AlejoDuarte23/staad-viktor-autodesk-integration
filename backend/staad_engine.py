@@ -34,6 +34,9 @@ def collect_geometry_data(units: str = "m") -> dict[str, Any]:
     connectivity: dict[int, dict[str, float]] = {}
     lines: dict[int, dict[str, Any]] = {}
 
+    # STAAD API returns coordinates in inches, convert to meters
+    inches_to_meters = 0.0254
+
     for bid in beam_ids:
         na, nb = get_member_incidence(geometry=geometry, beam_no=bid)
         beam_name = get_beam_name(staad_property=staad_property, beamNo=bid)
@@ -41,6 +44,9 @@ def collect_geometry_data(units: str = "m") -> dict[str, Any]:
         try:
             ax, ay, az = get_node_coords(geometry=geometry, node_no=na)
             bx, by, bz = get_node_coords(geometry=geometry, node_no=nb)
+            # Convert from inches to meters
+            ax, ay, az = ax * inches_to_meters, ay * inches_to_meters, az * inches_to_meters
+            bx, by, bz = bx * inches_to_meters, by * inches_to_meters, bz * inches_to_meters
         except Exception as exc:  # pragma: no cover - defensive logging
             ax = ay = az = bx = by = bz = float("nan")
             print(f"Failed to get node coordinates for beam {bid}: {exc}")
@@ -52,8 +58,10 @@ def collect_geometry_data(units: str = "m") -> dict[str, Any]:
         if nb not in connectivity:
             connectivity[nb] = {"x": bx, "y": bz, "z": by}
 
-        # Convert section name: replace uppercase X with lowercase x (e.g., UB457X152X52 -> UB457x152x52)
-        section_name = beam_name.replace("X", "x") if beam_name else beam_name
+        # Convert section name:
+        # - Replace uppercase X with lowercase x (e.g., UB457X152X52 -> UB457x152x52)
+        # - Strip spaces (L 100x100x8 -> L100x100x8)
+        section_name = beam_name.replace("X", "x").replace(" ", "") if beam_name else beam_name
         lines[bid] = {"nodeI": na, "nodeJ": nb, "section": section_name}
 
     return {"units": units, "connectivity": connectivity, "lines": lines}

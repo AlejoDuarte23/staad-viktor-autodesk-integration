@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sys
 
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -128,8 +127,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_success(self, payload: dict) -> None:
         self.set_status("Geometry pushed successfully!", "#0f9d58")
-        self.result_view.setPlainText(json.dumps(payload, indent=2))
-        self.result_view.show()
 
     def on_error(self, message: str) -> None:
         self.set_status(message, "#d93025")

@@ -39,6 +39,9 @@ class APSresult(vkt.WebResult):
 class APSView(vkt.WebView):
     pass
 class Parametrization(vkt.Parametrization):
+    title = vkt.Text("""# Generate Revit Model From a STAAD Model
+Upload your STAAD model (JSON) and this app will run an APS automation activity to convert the structure into a Revit file with beam elements. The process uploads your inputs, executes the cloud activity, and returns a downloadable Revit file you can preview. Ensure your APS credentials are configured in the environment before running.
+""")
     input_file = vkt.FileField("Upload JSON File", file_types=[".json"])
 class Controller(vkt.Controller):
     parametrization = Parametrization

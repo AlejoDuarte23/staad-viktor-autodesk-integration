@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage SchemaVersion="1.0" ProductType="Application" AutodeskProduct="Revit" Name="MyRevitAddin" AppVersion="1.0.0">
+  <CompanyDetails Name="My Company" Email="support@myco.example" Url="https://example.com"/>
+  <Components Description="Revit 2024">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2024" SeriesMax="R2024"/>
+    <ComponentEntry AppName="MyRevitAddin" ModuleName="./Contents/MyRevitAddin.addin"/>
+  </Components>
+</ApplicationPackage>
