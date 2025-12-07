@@ -113,11 +113,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
 
-        self.result_view = QtWidgets.QPlainTextEdit()
-        self.result_view.setReadOnly(True)
-        self.result_view.hide()
-        layout.addWidget(self.result_view, 1)
-
         self.apply_style()
 
     def handle_submit(self) -> None:

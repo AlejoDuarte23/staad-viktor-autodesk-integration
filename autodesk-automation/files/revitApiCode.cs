@@ -173,12 +173,14 @@ namespace MyRevitAddin
                 var seenInputKeys = new HashSet<string>();
                 var orderedMembers = members.Values.ToList();
 
-                Level level = GetFirstLevel();
                 var newFraming = new List<FamilyInstance>();
 
                 using (var t = new Transaction(_doc, "Build structure"))
                 {
                     t.Start();
+
+                    // Get lowest existing level, or create one near the lowest node Z if none exist.
+                    Level level = GetOrCreateLevel(nodes);
 
                     foreach (var m in orderedMembers)
                     {
@@ -255,22 +257,87 @@ namespace MyRevitAddin
                 throw new ArgumentException("Unsupported units, " + _units);
             }
 
-            private Level GetFirstLevel()
+            // Get lowest level or create one near min Z
+            private Level GetOrCreateLevel(Dictionary<string, Node> nodes)
             {
                 var levels = new FilteredElementCollector(_doc)
                     .OfClass(typeof(Level))
                     .Cast<Level>()
+                    .OrderBy(l => l.Elevation)
                     .ToList();
 
-                if (levels.Count > 0) return levels[0];
+                if (levels.Count > 0)
+                    return levels[0];
 
-                using (var t = new Transaction(_doc, "Create Level 1"))
+                if (nodes == null || nodes.Count == 0)
+                    throw new InvalidOperationException(
+                        "No levels in model and no nodes in input to define a new level.");
+
+                double minNodeZUnits = nodes.Values.Min(n => n.Z);
+
+                double marginUnits;
+                double stepUnits;
+                switch (_units)
                 {
-                    t.Start();
-                    var lvl = Level.Create(_doc, 0.0);
-                    lvl.Name = "Level 1";
-                    t.Commit();
-                    return lvl;
+                    case "m":
+                        marginUnits = 0.05;
+                        stepUnits = 0.10;
+                        break;
+                    case "mm":
+                        marginUnits = 50.0;
+                        stepUnits = 100.0;
+                        break;
+                    case "ft":
+                        marginUnits = 0.2;
+                        stepUnits = 0.5;
+                        break;
+                    default:
+                        throw new ArgumentException("Unsupported units, " + _units);
+                }
+
+                double targetUnits = minNodeZUnits - marginUnits;
+                double snappedUnits = Math.Floor(targetUnits / stepUnits) * stepUnits;
+                if (Math.Abs(snappedUnits) < stepUnits * 0.5)
+                    snappedUnits = 0.0;
+
+                double elevationFt = ToFeet(snappedUnits);
+
+                Console.WriteLine(
+                    $"DA: No levels found. Creating level at approx Z={snappedUnits} {_units} ({elevationFt} ft). " +
+                    $"Lowest node Z={minNodeZUnits} {_units}.");
+
+                Level newLevel = Level.Create(_doc, elevationFt);
+                try
+                {
+                    newLevel.Name = "DA_Generated_Level";
+                }
+                catch { }
+
+                HideLevelIn3DViews(newLevel);
+
+                return newLevel;
+            }
+
+            private void HideLevelIn3DViews(Level level)
+            {
+                if (level == null)
+                    return;
+
+                var ids = new List<ElementId> { level.Id };
+
+                var views3D = new FilteredElementCollector(_doc)
+                    .OfClass(typeof(View3D))
+                    .Cast<View3D>()
+                    .Where(v => !v.IsTemplate)
+                    .ToList();
+
+                foreach (var v in views3D)
+                {
+                    try
+                    {
+                        v.HideElements(ids);
+                    }
+                    catch { }
                 }
             }
 
@@ -441,6 +508,7 @@ namespace MyRevitAddin
                 if (framingCat == null)
                     return;
 
+                // Solid fill pattern
                 FillPatternElement solidFill = new FilteredElementCollector(doc)
                     .OfClass(typeof(FillPatternElement))
                     .Cast<FillPatternElement>()
@@ -449,17 +517,24 @@ namespace MyRevitAddin
                 if (solidFill == null)
                     return;
 
-                var lineColor = new Color(0, 0, 0);          // black outlines
-                var fillColor = new Color(255, 160, 122);    // salmon fill
+                // Outline: dark red-brown
+                var lineColor = new Color(160, 60, 60);
+                // Fill: redder
+                var fillColor = new Color(235, 90, 90);
 
                 var ogs = new OverrideGraphicSettings();
 
+                // Lines
                 ogs.SetProjectionLineColor(lineColor);
                 ogs.SetCutLineColor(lineColor);
+                ogs.SetProjectionLineWeight(1);
+                ogs.SetCutLineWeight(1);
 
+                // Surface fill
                 ogs.SetSurfaceForegroundPatternId(solidFill.Id);
                 ogs.SetSurfaceForegroundPatternColor(fillColor);
 
+                // Cut fill
                 ogs.SetCutForegroundPatternId(solidFill.Id);
                 ogs.SetCutForegroundPatternColor(fillColor);
 
@@ -477,7 +552,7 @@ namespace MyRevitAddin
                     }
                     catch (Autodesk.Revit.Exceptions.InvalidOperationException)
                     {
-                        // ignore views that do not support overrides
+                        // ignore stubborn views
                     }
                 }
             }
